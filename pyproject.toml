@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "tinyagents"
+version = "0.1.0"
+description = "A tiny, lightweight and unintrusive library for orchestrating agentic applications."
+authors = ["Adam Hedib (adam-h-ds)"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.2"
+black = "^24.4.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
