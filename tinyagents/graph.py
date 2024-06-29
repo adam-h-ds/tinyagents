@@ -3,7 +3,7 @@ from typing import Any, Optional
 from tinyagents.types import NodeOutput
 from tinyagents.callbacks import BaseCallback
 from tinyagents.callbacks import BaseCallback, StdoutCallback
-from tinyagents.utils import check_for_response
+from tinyagents.utils import check_for_break
 
 class Graph:
     _graph: list
@@ -45,14 +45,14 @@ class GraphRunner:
 
         response = None
         for node in self._graph.get_order():
-            if response:
-                break
-
             input = self._get_content(x)
 
             x = node.execute(input, callback=self.callback)
 
-            response = check_for_response(x)
+            response = check_for_break(x)
+
+            if response:
+                break
         
         if self.callback: self.callback.flow_end(outputs=response)
 

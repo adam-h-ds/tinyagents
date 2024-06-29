@@ -1,6 +1,10 @@
 # TinyAgents 
 <img src="docs/assets/logo.png" alt="drawing" width="100"/>
 
+[![LICENSE](https://img.shields.io/github/license/adam-h-ds/tinyagents?label=license&style=for-the-badge)](https://github.com/adam-h-ds/tinyagents/blob/main/LICENSE)
+[![BUILD](https://img.shields.io/github/actions/workflow/status/adam-h-ds/tinyagents/publish.yml?style=for-the-badge)](https://github.com/adam-h-ds/tinyagents/blob/main/.github/workflows/publish.yml)
+[![VERSION](https://img.shields.io/pypi/v/tinyagents?style=for-the-badge&label=PYPI+VERSION)](https://github.com/adam-h-ds/tinyagents)
+
 A tiny, lightweight and unintrusive library for orchestrating agentic applications. 
 
 **Here's the big idea:**
