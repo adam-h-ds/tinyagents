@@ -5,7 +5,7 @@ from hashlib import md5
 
 from tinyagents.graph import Graph
 from tinyagents.handlers import passthrough
-from tinyagents.utils import check_for_response
+from tinyagents.utils import check_for_break
 from tinyagents.types import NodeOutput
 from tinyagents.callbacks import BaseCallback
 
@@ -155,7 +155,7 @@ class Recursive(NodeMeta):
                 x = node.execute(input)
                 if callback: callback.node_finish(node.name, x)
 
-                response = check_for_response(x)
+                response = check_for_break(x)
                 if response:
                     break
 
