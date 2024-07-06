@@ -45,10 +45,13 @@ class NodeMeta:
     def output_handler(self, outputs: Any):
         return passthrough(outputs)
     
-    abstractmethod
-    def execute(self, inputs: Any) -> Any:
+    @abstractmethod
+    def execute(self, inputs: Any, callback: BaseCallback = None) -> Any:
+        if callback: callback.node_start(self.name, inputs)
         output = self.run(inputs)
-        return self.output_handler(output)
+        output = self.output_handler(output)
+        if callback: callback.node_finish(self.name, output)
+        return output
     
     def as_graph(self):
         graph = Graph()
@@ -117,7 +120,7 @@ class ConditionalBranch(NodeMeta):
     def execute(self, inputs: Any, callback: BaseCallback = None):
         if callback: callback.node_start(self.name, inputs)
 
-        # if no router has been set, assune the inputs to the node is the name of the node to execute
+        # if no router has been set, assume the inputs to the node is the name of the node to execute
         if not self.router:
             route = inputs
         else:

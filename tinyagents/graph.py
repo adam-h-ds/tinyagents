@@ -1,4 +1,5 @@
 from typing import Any, Optional
+from uuid import uuid4
 
 from tinyagents.types import NodeOutput
 from tinyagents.callbacks import BaseCallback
@@ -18,7 +19,7 @@ class Graph:
         self._graph.append(node)
 
     def __str__(self):
-        return "".join([f" {node.name} ->" for node in self._graph])[:-3].strip()
+        return "".join([f" {node.__repr__()} ->" for node in self._graph])[:-3].strip()
     
     def __or__(self, node: Any):
         self.next(node)
@@ -41,7 +42,9 @@ class GraphRunner:
         self.callback = callback
 
     def execute(self, x: Any):
-        if self.callback: self.callback.flow_start(inputs=x)
+        run_id = self._create_run_id()
+
+        if self.callback: self.callback.flow_start(ref=run_id, inputs=x)
 
         response = None
         for node in self._graph.get_order():
@@ -54,7 +57,7 @@ class GraphRunner:
             if response:
                 break
         
-        if self.callback: self.callback.flow_end(outputs=response)
+        if self.callback: self.callback.flow_end(ref=run_id, outputs=response)
 
         return response
 
@@ -69,3 +72,7 @@ class GraphRunner:
             return x.content
         
         return x
+    
+    @staticmethod
+    def _create_run_id():
+        return str(uuid4())
