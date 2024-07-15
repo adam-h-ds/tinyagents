@@ -5,6 +5,8 @@ description = "A tiny, lightweight and unintrusive library for orchestrating age
 authors = ["Adam Hedib (adam-h-ds)"]
 license = "MIT"
 readme = "README.md"
+homepage = "https://github.com/adam-h-ds/tinyagents"
+repository = "https://github.com/adam-h-ds/tinyagents"
 
 [tool.poetry.dependencies]
 python = "^3.10"

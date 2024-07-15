@@ -14,12 +14,12 @@ def create_colored_text(text: str, colour: str) -> str:
     colour_code = COLOUR_MAP[colour]
     return f"\u001b[{colour_code}m\033[1;3m{text}\u001b[0m"
 
-def check_for_response(outputs: Union[NodeOutput, List[NodeOutput]]):
+def check_for_break(outputs: Union[NodeOutput, List[NodeOutput]]):
     if not isinstance(outputs, list):
         outputs = [outputs]
 
     for output in outputs:
-        if output.action == "respond":
+        if output.action in ["respond", "end_loop"]:
             return output.content
 
     return None
