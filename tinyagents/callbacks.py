@@ -1,6 +1,8 @@
-from abc import abstractmethod, ABC
-from typing import Any, Union
+from abc import ABC
+from typing import Any
 import json
+from inspect import iscoroutine
+from ray.serve.handle import DeploymentResponse
 
 from tinyagents.utils import create_colored_text
 from tinyagents.types import NodeOutput
@@ -31,4 +33,18 @@ class StdoutCallback(BaseCallback):
         print(create_colored_text(f"\tInput: {inputs}\n", "yellow"))
 
     def node_finish(self, ref: str, outputs: Any):
-        print(create_colored_text(f"\tOutput: {json.dumps(outputs.to_dict() if isinstance(outputs, NodeOutput) else [output.to_dict() for output in outputs], indent=2)}", "green"))
+        print(create_colored_text(f"\tOutput ({ref}): {self.output_to_str(outputs)}", "green"))
+
+    @staticmethod
+    def output_to_str(outputs) -> str:
+        if iscoroutine(outputs) or isinstance(outputs, DeploymentResponse):
+            return "[Future]"
+        
+        if isinstance(outputs, NodeOutput):
+            outputs = outputs.to_dict()
+        elif isinstance(outputs, list):
+            outputs = [output.to_dict() for output in outputs]
+
+        return json.dumps(outputs, indent=2)
+        
+

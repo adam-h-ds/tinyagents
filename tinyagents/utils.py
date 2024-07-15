@@ -1,4 +1,7 @@
 from typing import Union, List
+from uuid import uuid4
+
+import ray
 
 from tinyagents.types import NodeOutput
 
@@ -15,11 +18,32 @@ def create_colored_text(text: str, colour: str) -> str:
     return f"\u001b[{colour_code}m\033[1;3m{text}\u001b[0m"
 
 def check_for_break(outputs: Union[NodeOutput, List[NodeOutput]]):
+    if isinstance(outputs, dict):
+        outputs = list(outputs.values())
+
     if not isinstance(outputs, list):
         outputs = [outputs]
 
     for output in outputs:
         if output.action in ["respond", "end_loop"]:
-            return output.content
+            return True
 
-    return None
+    return False
+
+def get_content(x):
+    """ Extract the content from the inputs """
+    if isinstance(x, list):
+        return [output.content if isinstance(output, NodeOutput) else output for output in x]
+            
+    elif isinstance(x, dict):
+        for key in x:
+            if isinstance(x[key], NodeOutput):
+                x[key] = x[key].content
+        
+    elif isinstance(x, NodeOutput):
+        return x.content
+    
+    return x
+
+def create_run_id():
+    return str(uuid4())
