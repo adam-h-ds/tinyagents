@@ -51,9 +51,9 @@ class Agent:
 
 # run `tool1` and `tool2` in parallel, then pass outputs to `Agent`
 graph = (tool1 & tool2) | Agent()
-executor = graph.compile()
+runner = graph.compile()
 
-executor.execute("Hello!")
+runner.invoke("Hello!")
 ```
 
 #### Branching
