@@ -22,7 +22,7 @@ A tiny, lightweight and unintrusive library for orchestrating agentic applicatio
 ## Installation
 
 ```bash
-pip install https://github.com/adam-h-ds/tinyagents.git
+pip install tinyagents
 ```
 
 ## How it works!
