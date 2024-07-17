@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 from tinyagents.types import NodeOutput, Action
 import tinyagents.nodes as nodes
@@ -20,5 +20,5 @@ def end_loop(outputs: Any):
         action=Action.EndLoop
     )
 
-def loop(node1, node2, max_iter: int = 3, name: str = None):
+def loop(node1, node2, max_iter: int = 3, name: Optional[str] = None):
     return nodes.Recursive(node1, node2, max_iter, name)

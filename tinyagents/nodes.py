@@ -1,7 +1,6 @@
 import logging
-from typing import Any, Callable, Optional, Dict
+from typing import Any, Callable, Optional, Dict, Union
 from abc import abstractmethod
-from hashlib import md5
 from inspect import iscoroutinefunction
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -17,16 +16,13 @@ logger = logging.getLogger(__name__)
 class NodeMeta:
     name: str
 
-    @abstractmethod
-    def __truediv__(self, *args):
+    def __truediv__(self, *args) -> "ConditionalBranch":
         return ConditionalBranch(self, *args)
         
-    @abstractmethod
-    def __and__(self, *args):
+    def __and__(self, *args) -> "Parralel":
         return Parralel(self, *args)
     
-    @abstractmethod
-    def __or__(self, node: Any):
+    def __or__(self, node: Any) -> Graph:
         if isinstance(node, Graph):
             node.next(self)
             return node
@@ -36,24 +32,20 @@ class NodeMeta:
         graph.next(node)
         return graph
 
-    @abstractmethod
-    def set_name(self, name: str):
+    def set_name(self, name: str) -> None:
         self.name = name
 
-    @abstractmethod
-    def run(self, inputs: Any):
-        pass
+    def run(self, inputs: Any) -> Any:
+        raise NotImplementedError()
 
-    @abstractmethod
-    def output_handler(self, outputs: Any):
+    def output_handler(self, outputs: Any) -> NodeOutput:
         return passthrough(outputs)
     
-    @abstractmethod
-    def prepare_input(self, inputs: Any):
+    def prepare_input(self, inputs: Any) -> Any:
         return get_content(inputs)
     
     @abstractmethod
-    def invoke(self, inputs: Any, callback: BaseCallback = None) -> Any:
+    def invoke(self, inputs: Any, callback: Optional[BaseCallback] = None) -> Union[NodeOutput, Dict[str, NodeOutput]]:
         if callback: callback.node_start(self.name, inputs)
         inputs = self.prepare_input(inputs)
         output = self.run(inputs)
@@ -62,7 +54,7 @@ class NodeMeta:
         return output
     
     @abstractmethod
-    async def ainvoke(self, inputs: Any, callback: BaseCallback = None):
+    async def ainvoke(self, inputs: Any, callback: Optional[BaseCallback] = None) -> Union[NodeOutput, Dict[str, NodeOutput]]:
         if callback: callback.node_start(self.name, inputs)
         inputs = await self._async_run(self.prepare_input, inputs)
         output = await self._async_run(self.run, inputs)
@@ -71,12 +63,12 @@ class NodeMeta:
         return output
     
     @staticmethod
-    async def _async_run(func: Callable, inputs: Any):
+    async def _async_run(func: Callable, inputs: Any) -> Any:
         if iscoroutinefunction(func):
             return await func(inputs)
         return func(inputs)
     
-    def as_graph(self):
+    def as_graph(self) -> Graph:
         graph = Graph()
         graph.next(self)
         return graph   
@@ -87,7 +79,7 @@ class Parralel(NodeMeta):
     nodes: dict
     num_workers: int
 
-    def __init__(self, *args, nodes: Optional[dict] = None, name: str = None, num_workers: int = None):
+    def __init__(self, *args, nodes: Optional[dict] = None, name: Optional[str] = None, num_workers: Optional[int] = None):
         if not nodes:
             self.nodes = {arg.name: arg for arg in args}
         else:
@@ -95,18 +87,20 @@ class Parralel(NodeMeta):
 
         self.num_workers = num_workers
             
-        if not name:
+        if name == None:
             self.set_name("parallel_" + "_".join(self.nodes.keys()))
+        else:
+            self.set_name(name)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         nodes_str = " ∧ ".join(list(self.nodes.keys()))
         return f"Parallel({nodes_str})"
     
-    def __and__(self, other_node):
+    def __and__(self, other_node) -> "Parralel":
         self.nodes[other_node.name] = other_node
         return self
     
-    def invoke(self, inputs, callback: BaseCallback = None) -> Dict[str, NodeOutput]:
+    def invoke(self, inputs, callback: Optional[BaseCallback] = None) -> Dict[str, NodeOutput]:
         refs = {}
         outputs = {}
         with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
@@ -121,7 +115,7 @@ class Parralel(NodeMeta):
 
         return outputs
     
-    async def ainvoke(self, inputs, callback: BaseCallback = None) -> Dict[str, NodeOutput]:
+    async def ainvoke(self, inputs, callback: Optional[BaseCallback] = None) -> Dict[str, NodeOutput]:
         refs = {}
         outputs = {}
         for name, node in self.nodes.items():
@@ -144,11 +138,11 @@ class Parralel(NodeMeta):
 
 class ConditionalBranch(NodeMeta):
     """ A node which represents a branch in the graph, """
-    name: str = None
+    name: str
     branches: dict
-    router: Callable = None
+    router: Optional[Callable] = None
 
-    def __init__(self, *args, router: Optional[Callable] = None, branches: Optional[dict] = None):
+    def __init__(self, *args, router: Optional[Callable] = None, branches: Optional[dict] = None, name: Optional[str] = None):
         if not branches:
             self.branches = {
                 node.name: node for node in args
@@ -156,9 +150,14 @@ class ConditionalBranch(NodeMeta):
         else:
             self.branches = branches
 
+        if name == None:
+            self.set_name("conditional_branch_" + "_".join(list(self.branches.keys())))
+        else:
+            self.set_name(name)
+
         self.router = router
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         branches_str = " | ".join(list(self.branches.keys()))
         return f"ConditionalBranch({branches_str})"
     
@@ -166,15 +165,11 @@ class ConditionalBranch(NodeMeta):
         self.branches[other_node.name] = other_node
         return self
     
-    @property
-    def name(self):
-        return self.__repr__()
-    
-    def bind_router(self, router: Callable):
+    def bind_router(self, router: Callable) -> "ConditionalBranch":
         self.router = router
         return self
     
-    def invoke(self, inputs: Any, callback: BaseCallback = None):
+    def invoke(self, inputs: Any, callback: Optional[BaseCallback] = None) -> NodeOutput:
         if callback: callback.node_start(self.name, inputs)
         route = self._get_route(inputs)
         node = self._get_node(route)
@@ -184,7 +179,7 @@ class ConditionalBranch(NodeMeta):
         if callback: callback.node_finish(self.name, output)
         return output
     
-    async def ainvoke(self, inputs: Any, callback: BaseCallback = None):
+    async def ainvoke(self, inputs: Any, callback: Optional[BaseCallback] = None):
         if callback: callback.node_start(self.name, inputs)
         route = self._get_route(inputs)
         node = self._get_node(route)
@@ -212,21 +207,25 @@ class ConditionalBranch(NodeMeta):
     
 class Recursive(NodeMeta):
     """ A node for looping the execution of two subnodes (e.g. a conversation between two agents)"""
-    name: str = None
-    node1: NodeMeta = None
-    node2: NodeMeta = None
-    max_iter: int = None
+    name: str
+    node1: NodeMeta
+    node2: NodeMeta
+    max_iter: int
 
-    def __init__(self, node1, node2, max_iter: int = 3, name: str = None):
+    def __init__(self, node1, node2, max_iter: int = 3, name: Optional[str] = None):
         self.node1 = node1
         self.node2 = node2
         self.max_iter = max_iter
-        self.name = name
+
+        if name == None:
+            self.set_name(f"recursive_{node1.name}_{node2.name}")
+        else:
+            self.set_name(name)
 
     def __repr__(self):
         return f"Recursive({self.node1.name}, {self.node2.name})"
     
-    def invoke(self, x, callback: BaseCallback = None):
+    def invoke(self, x, callback: Optional[BaseCallback] = None):
         response = None
         n = 0
         while not response and n <= self.max_iter:
@@ -246,7 +245,7 @@ class Recursive(NodeMeta):
 
         return x
     
-    async def ainvoke(self, x, callback: BaseCallback = None):
+    async def ainvoke(self, x, callback: Optional[BaseCallback] = None):
         response = None
         n = 0
         while not response and n <= self.max_iter:

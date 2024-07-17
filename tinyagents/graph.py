@@ -37,11 +37,6 @@ class Graph:
     def __or__(self, node: Any):
         self.next(node)
         return self
-    
-    @property
-    def root(self) -> list:
-        order = self.get_order()
-        return order[0] if len(order) > 0 else None
 
 class GraphRunner:
     """ A class for executing the graph """
@@ -89,7 +84,7 @@ class GraphRunner:
         
         if self.callback: self.callback.flow_end(ref=run_id, outputs=x)
 
-        return x
+        return x.content
     
 @serve.deployment(name="runner")
 class GraphDeployment:

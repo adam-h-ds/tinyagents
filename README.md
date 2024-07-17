@@ -99,7 +99,7 @@ class Supervisor:
 
     def run(self, state: dict) ->:
         # get findings from the state and assess
-        return ...
+        return state
 
     def output_handler(self, state: dict):
         if state["last_message"] == "Approved":
@@ -113,7 +113,7 @@ class Researcher:
 
     def __run__(self, state: str) -> str:
         # add findings to the state
-        return ...
+        return state
 
 graph = loop(Researcher(), Supervisor(), max_iter=8).as_graph()
 
