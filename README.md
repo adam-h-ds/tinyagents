@@ -9,7 +9,7 @@ A tiny, lightweight and unintrusive library for orchestrating agentic applicatio
 
 **Here's the big idea:**
 
-1. 😶‍🌫️ **Less than 500 lines of code.**
+1. 😶‍🌫️ **Less than 600 lines of code.**
 2. 😨 **Lightweight - "Ray Is All You Need"**
 3. 🚀 **No need to change your code, just decorate!** 
 
