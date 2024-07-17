@@ -26,7 +26,7 @@ class Graph:
         
         nodes = deploy_utils.nodes_to_deployments(graph_nodes=self._state, ray_options=ray_options)
         self._compiled = True
-        return GraphDeployment.options(**ray_options.get("runner", {})).bind(nodes)
+        return GraphDeployment.options(**ray_options.get("runner", {})).bind(nodes, callback=callback)
 
     def next(self, node: Any) -> None:
         self._state.append(node)

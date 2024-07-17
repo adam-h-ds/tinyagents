@@ -138,6 +138,9 @@ class Parralel(NodeMeta):
             outputs[node_name] = output
 
         return outputs
+    
+    def set_max_workers(self, max_workers: int) -> None:
+        self.max_workers = max_workers
 
 class ConditionalBranch(NodeMeta):
     """ A node which represents a branch in the graph, """
@@ -244,13 +247,17 @@ class Recursive(NodeMeta):
         return x
     
     async def ainvoke(self, x, callback: BaseCallback = None):
+        response = None
         n = 0
         while not response and n <= self.max_iter:
             for node in [self.node1, self.node2]:
                 input = get_content(x)
 
                 if callback: callback.node_start(node.name, input)
-                x = await node.ainvoke(x)
+                if hasattr(node.invoke, "remote"):
+                    x = await node.ainvoke.remote(x)
+                else:
+                    x = await node.ainvoke(x)
                 if callback: callback.node_finish(node.name, x)
 
                 stop = check_for_break(x)

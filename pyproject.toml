@@ -10,6 +10,7 @@ repository = "https://github.com/adam-h-ds/tinyagents"
 
 [tool.poetry.dependencies]
 python = "^3.10"
+ray = {extras = ["serve"], version = "^2.32.0"}
 
 
 [tool.poetry.group.dev.dependencies]

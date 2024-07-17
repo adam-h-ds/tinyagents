@@ -1,3 +1,5 @@
+import inspect
+
 from ray import serve
 
 import tinyagents.nodes as nodes
@@ -36,9 +38,9 @@ def recursive_node_to_deployment(node, ray_options: dict = {}) -> serve.Deployme
 
 def node_to_deployment(node, ray_options: dict = {}):
     options = ray_options.get(node.name, {})
-    annos = node.__init__.__annotations__ if hasattr(node.__init__, "__annotations__")  else {}
+    args = [arg for arg in list(inspect.signature(node.__init__).parameters.keys()) if arg not in ["args", "kwargs", "self"]]
     try:
-        args = {anno: getattr(node, anno) for anno in annos}
+        args = {anno: getattr(node, anno) for anno in args}
     except AttributeError:
         raise Exception(f"In order to compile the graph using Ray, arguments that are passed to the constructor must be stored as attributes of the class `{node.name}`.")
     
