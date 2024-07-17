@@ -20,9 +20,15 @@ class TestParallelNode(unittest.TestCase):
         self.assertIs(isinstance(node, nodes.Parralel), True)
 
     def test_node_execution(self):
-        node = Action1() & Action2()
+        action1 = Action1()
+        action2 = Action2()
 
+        node = action1 & action2
+        print(node.invoke("."))
         self.assertEqual(
-            [Action1().execute("."), Action2().execute(".")],
-            node.execute(".")
+            {
+                action1.name: action1.invoke("."),
+                action2.name: action2.invoke(".")
+            },
+            node.invoke(".")
         )

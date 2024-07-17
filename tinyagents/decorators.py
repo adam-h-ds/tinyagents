@@ -14,7 +14,7 @@ def chainable(cls):
 
     class ChainableNode(cls if isclass(cls) else func_cls, NodeMeta):
         name: str = cls.name if hasattr(cls, "name") else cls.__name__
-
+        
         def __repr__(self):
             return self.name
 

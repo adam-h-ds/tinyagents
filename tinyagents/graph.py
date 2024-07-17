@@ -1,71 +1,108 @@
 from typing import Any, Optional
+from json.decoder import JSONDecodeError
 
-from tinyagents.types import NodeOutput
-from tinyagents.callbacks import BaseCallback
+from ray import serve
+from ray.serve.handle import DeploymentHandle
+import starlette
+import starlette.requests
+
 from tinyagents.callbacks import BaseCallback, StdoutCallback
-from tinyagents.utils import check_for_break
+from tinyagents.utils import check_for_break, get_content, create_run_id
+import tinyagents.deployment_utils as deploy_utils
 
 class Graph:
-    _graph: list
+    _state: list
+    _compiled: bool = False
 
     def __init__(self):
-        self._graph = []
+        self._state = []
 
-    def compile(self, callback: BaseCallback = StdoutCallback()):
-        return GraphRunner(self, callback=callback)
-    
-    def next(self, node: Any):
-        self._graph.append(node)
+    def compile(self, use_ray: bool = False, ray_options: dict = {}, callback: BaseCallback = StdoutCallback()):
+        if not use_ray:
+            return GraphRunner(nodes=self._state, callback=callback)
+        
+        if self._compiled:
+            raise Exception("Nodes in the graph have already been constructed as Ray deployments.")
+        
+        nodes = deploy_utils.nodes_to_deployments(graph_nodes=self._state, ray_options=ray_options)
+        self._compiled = True
+        return GraphDeployment.options(**ray_options.get("runner", {})).bind(nodes, callback=callback)
 
-    def __str__(self):
-        return "".join([f" {node.name} ->" for node in self._graph])[:-3].strip()
+    def next(self, node: Any) -> None:
+        self._state.append(node)
+
+    def __str__(self) -> str:
+        return "".join([f" {node.__repr__()} ->" for node in self._state])[:-3].strip()
     
     def __or__(self, node: Any):
         self.next(node)
         return self
-    
-    def get_order(self):
-        """ Get the static order of nodes """
-        return self._graph
-    
-    @property
-    def root(self):
-        order = self.get_order()
-        return order[0] if len(order) > 0 else None
 
 class GraphRunner:
     """ A class for executing the graph """
 
-    def __init__(self, graph: Graph, callback: Optional[BaseCallback] = None):
-        self._graph = graph
+    def __init__(self, nodes: list, callback: Optional[BaseCallback] = None):
+        self.nodes = nodes
         self.callback = callback
 
-    def execute(self, x: Any):
-        if self.callback: self.callback.flow_start(inputs=x)
+    def invoke(self, x: Any):
+        run_id = create_run_id()
 
-        response = None
-        for node in self._graph.get_order():
-            input = self._get_content(x)
+        if self.callback: self.callback.flow_start(ref=run_id, inputs=x)
 
-            x = node.execute(input, callback=self.callback)
+        for node in self.nodes:
+            input = get_content(x)
 
-            response = check_for_break(x)
+            x = node.invoke(input, callback=self.callback)
 
-            if response:
+            stop = check_for_break(x)
+
+            if stop:
                 break
         
-        if self.callback: self.callback.flow_end(outputs=response)
+        if self.callback: self.callback.flow_end(ref=run_id, outputs=x)
 
-        return response
+        return x.content
+    
+    async def ainvoke(self, x: Any):
+        run_id = create_run_id()
 
-    @staticmethod
-    def _get_content(x):
-        """ Extract the content from the inputs """
-        if isinstance(x, list):
-            if len(x) > 0 and isinstance(x[0], NodeOutput):
-                return [output.content for output in x]
-            
-        if isinstance(x, NodeOutput):
-            return x.content
+        if self.callback: self.callback.flow_start(ref=run_id, inputs=x)
+
+        for node in self.nodes:
+            input = get_content(x)
+
+            if hasattr(node.invoke, "remote"):
+                x = await node.ainvoke.remote(input, callback=self.callback)
+            else:
+                x = await node.ainvoke(input, callback=self.callback)
+
+            stop = check_for_break(x)
+
+            if stop:
+                break
         
-        return x
+        if self.callback: self.callback.flow_end(ref=run_id, outputs=x)
+
+        return x.content
+    
+@serve.deployment(name="runner")
+class GraphDeployment:
+    def __init__(self, nodes: list, callback = None):
+        self.runner = GraphRunner(nodes, callback=callback)
+        self.callback = callback
+    
+    async def ainvoke(self, inputs: Any):
+        return await self.runner.ainvoke(inputs)
+
+    async def __call__(self, request: starlette.requests.Request):
+        if not isinstance(request, starlette.requests.Request):
+            raise Exception("The `__call__` method is only used for handling REST requests. Use the `ainvoke()` method instead.")
+        
+        try:
+            request = await request.json()
+        except JSONDecodeError:
+            request = await request.body()
+            request = request.decode("utf-8")
+
+        return await self.runner.ainvoke(request)

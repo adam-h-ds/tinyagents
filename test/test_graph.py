@@ -44,6 +44,6 @@ class TestGraph(unittest.TestCase):
         graph = node1 | node2
 
         self.assertEqual(
-            graph.get_order(),
+            graph._state,
             [node1, node2]
         )

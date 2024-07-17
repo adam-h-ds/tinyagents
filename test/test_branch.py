@@ -30,5 +30,5 @@ class TestBranchNode(unittest.TestCase):
         
         node.bind_router(router)
 
-        self.assertEqual(node.execute("trigger_action_1").content, "action_1_output")
-        self.assertEqual(node.execute("trigger_action_2").content, "action_2_output")
+        self.assertEqual(node.invoke("trigger_action_1").content, "action_1_output")
+        self.assertEqual(node.invoke("trigger_action_2").content, "action_2_output")

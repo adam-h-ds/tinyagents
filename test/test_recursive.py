@@ -26,4 +26,4 @@ class TestResursiveNode(unittest.TestCase):
 
     def test_max_iterations(self):
         node = loop(Action1(), Action2(), max_iter=3)
-        self.assertEqual(node.execute(0).content, 4)
+        self.assertEqual(node.invoke(0).content, 4)
