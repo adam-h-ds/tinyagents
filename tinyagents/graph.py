@@ -1,14 +1,16 @@
 from typing import Any, Optional
 from json.decoder import JSONDecodeError
+from contextlib import nullcontext
 
-from ray import serve
-from ray.serve.handle import DeploymentHandle
+from ray.serve import deployment
 import starlette
 import starlette.requests
+from opentelemetry.sdk.trace import Tracer
 
 from tinyagents.callbacks import BaseCallback, StdoutCallback
-from tinyagents.utils import check_for_break, get_content, create_run_id
+from tinyagents.utils import check_for_break, get_content, create_run_id, convert_to_string
 import tinyagents.deployment_utils as deploy_utils
+from tinyagents.tracing import trace_flow, _bind_tracer_to_node
 
 class Graph:
     _state: list
@@ -17,10 +19,10 @@ class Graph:
     def __init__(self):
         self._state = []
 
-    def compile(self, use_ray: bool = False, ray_options: dict = {}, callback: BaseCallback = StdoutCallback()):
+    def compile(self, use_ray: bool = False, ray_options: dict = {}, callback: BaseCallback = StdoutCallback(), tracer: Tracer = None):
         if not use_ray:
-            return GraphRunner(nodes=self._state, callback=callback)
-        
+            return GraphRunner(nodes=self._state, callback=callback, tracer=tracer)
+
         if self._compiled:
             raise Exception("Nodes in the graph have already been constructed as Ray deployments.")
         
@@ -41,10 +43,16 @@ class Graph:
 class GraphRunner:
     """ A class for executing the graph """
 
-    def __init__(self, nodes: list, callback: Optional[BaseCallback] = None):
+    def __init__(self, nodes: list, callback: Optional[BaseCallback] = None, tracer: Tracer = None):
         self.nodes = nodes
         self.callback = callback
+        self._tracer = tracer
 
+        if self._tracer:
+            for node in self.nodes:
+                node = _bind_tracer_to_node(node=node, tracer=self._tracer)
+
+    @trace_flow
     def invoke(self, x: Any):
         run_id = create_run_id()
 
@@ -52,9 +60,7 @@ class GraphRunner:
 
         for node in self.nodes:
             input = get_content(x)
-
-            x = node.invoke(input, callback=self.callback)
-
+            x = node.invoke(input, callback=self.callback) 
             stop = check_for_break(x)
 
             if stop:
@@ -86,7 +92,7 @@ class GraphRunner:
 
         return x.content
     
-@serve.deployment(name="runner")
+@deployment(name="runner")
 class GraphDeployment:
     def __init__(self, nodes: list, callback = None):
         self.runner = GraphRunner(nodes, callback=callback)
@@ -96,8 +102,7 @@ class GraphDeployment:
         return await self.runner.ainvoke(inputs)
 
     async def __call__(self, request: starlette.requests.Request):
-        if not isinstance(request, starlette.requests.Request):
-            raise Exception("The `__call__` method is only used for handling REST requests. Use the `ainvoke()` method instead.")
+        assert(isinstance(request, starlette.requests.Request)), "The `__call__` method is only used for handling REST requests. Use the `ainvoke()` method instead."
         
         try:
             request = await request.json()

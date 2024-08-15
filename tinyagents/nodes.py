@@ -1,20 +1,27 @@
 import logging
-from typing import Any, Callable, Optional, Dict, Union
+from typing import Any, Callable, Optional, Dict, Union, Literal
 from abc import abstractmethod
 from inspect import iscoroutinefunction
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+
+from opentelemetry.sdk.trace import Tracer
 
 from tinyagents.graph import Graph
 from tinyagents.handlers import passthrough
 from tinyagents.utils import check_for_break, get_content
 from tinyagents.types import NodeOutput
 from tinyagents.callbacks import BaseCallback
+from tinyagents.tracing import trace_node
 
 logger = logging.getLogger(__name__)
 
 class NodeMeta:
     name: str
+    _kind: Optional[Literal["tool", "llm", "retriever", "agent", "other"]]
+    _ray_options: Optional[Dict[str, Any]]
+    _metadata: Dict[str, Any]
+    _tracer: Tracer
 
     def __truediv__(self, *args) -> "ConditionalBranch":
         return ConditionalBranch(self, *args)
@@ -44,7 +51,7 @@ class NodeMeta:
     def prepare_input(self, inputs: Any) -> Any:
         return get_content(inputs)
     
-    @abstractmethod
+    @trace_node
     def invoke(self, inputs: Any, callback: Optional[BaseCallback] = None) -> Union[NodeOutput, Dict[str, NodeOutput]]:
         if callback: callback.node_start(self.name, inputs)
         inputs = self.prepare_input(inputs)

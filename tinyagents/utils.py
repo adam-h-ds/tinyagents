@@ -1,5 +1,6 @@
-from typing import Union, List
+from typing import Union, List, Any
 from uuid import uuid4
+import json
 
 import ray
 
@@ -36,14 +37,22 @@ def get_content(x):
         return [output.content if isinstance(output, NodeOutput) else output for output in x]
             
     elif isinstance(x, dict):
-        for key in x:
-            if isinstance(x[key], NodeOutput):
-                x[key] = x[key].content
+        for key, value in x.items():
+            if isinstance(value, NodeOutput):
+                x[key] = value.content
         
     elif isinstance(x, NodeOutput):
         return x.content
     
     return x
 
-def create_run_id():
+def convert_to_string(x: Any) -> str:
+    x = get_content(x)
+
+    if isinstance(x, dict) or isinstance(x, list):
+        return json.dumps(x)
+    
+    return str(x)
+
+def create_run_id() -> str:
     return str(uuid4())
