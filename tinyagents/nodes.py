@@ -12,7 +12,7 @@ from tinyagents.handlers import passthrough
 from tinyagents.utils import check_for_break, get_content
 from tinyagents.types import NodeOutput
 from tinyagents.callbacks import BaseCallback
-from tinyagents.tracing import trace_node
+from tinyagents.tracing import trace_node, create_tracer
 
 logger = logging.getLogger(__name__)
 
@@ -52,18 +52,18 @@ class NodeMeta:
         return get_content(inputs)
     
     @trace_node
-    def invoke(self, inputs: Any, callback: Optional[BaseCallback] = None) -> Union[NodeOutput, Dict[str, NodeOutput]]:
-        if callback: callback.node_start(self.name, inputs)
-        inputs = self.prepare_input(inputs)
+    def invoke(self, x: Any, callback: Optional[BaseCallback] = None) -> Union[NodeOutput, Dict[str, NodeOutput]]:
+        if callback: callback.node_start(self.name, x)
+        inputs = self.prepare_input(x)
         output = self.run(inputs)
         output = self.output_handler(output)
         if callback: callback.node_finish(self.name, output)
         return output
     
-    @abstractmethod
-    async def ainvoke(self, inputs: Any, callback: Optional[BaseCallback] = None) -> Union[NodeOutput, Dict[str, NodeOutput]]:
-        if callback: callback.node_start(self.name, inputs)
-        inputs = await self._async_run(self.prepare_input, inputs)
+    @trace_node
+    async def ainvoke(self, x: Any, callback: Optional[BaseCallback] = None) -> Union[NodeOutput, Dict[str, NodeOutput]]:
+        if callback: callback.node_start(self.name, x)
+        inputs = await self._async_run(self.prepare_input, x)
         output = await self._async_run(self.run, inputs)
         output = await self._async_run(self.output_handler, output)
         if callback: callback.node_finish(self.name, output)
@@ -79,6 +79,9 @@ class NodeMeta:
         graph = Graph()
         graph.next(self)
         return graph   
+    
+    def _init_tracer(self):
+        self._tracer = create_tracer()
     
 class Parralel(NodeMeta):
     """ A node which parallelises a set of subnodes """
@@ -107,13 +110,13 @@ class Parralel(NodeMeta):
         self.nodes[other_node.name] = other_node
         return self
     
-    def invoke(self, inputs, callback: Optional[BaseCallback] = None) -> Dict[str, NodeOutput]:
+    def invoke(self, x, callback: Optional[BaseCallback] = None) -> Dict[str, NodeOutput]:
         refs = {}
         outputs = {}
         with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
             for name, node in self.nodes.items():
-                if callback: callback.node_start(name, inputs)
-                refs[name] = executor.submit(partial(node.invoke, inputs))
+                if callback: callback.node_start(name, x)
+                refs[name] = executor.submit(partial(node.invoke, x=x))
 
             for node_name in refs:
                 output = refs[node_name].result()
@@ -122,16 +125,16 @@ class Parralel(NodeMeta):
 
         return outputs
     
-    async def ainvoke(self, inputs, callback: Optional[BaseCallback] = None) -> Dict[str, NodeOutput]:
+    async def ainvoke(self, x, callback: Optional[BaseCallback] = None) -> Dict[str, NodeOutput]:
         refs = {}
         outputs = {}
         for name, node in self.nodes.items():
-            if callback: callback.node_start(name, inputs)
+            if callback: callback.node_start(name, x)
 
             if hasattr(node, "remote"):
-                refs[name] = node.invoke.remote(inputs)
+                refs[name] = node.invoke.remote(x=x, callback=callback)
             else:
-                refs[name] = node.ainvoke(inputs)
+                refs[name] = node.ainvoke(x=x, callback=callback)
 
         for node_name in refs:
             output = await refs[node_name]
@@ -158,7 +161,7 @@ class ConditionalBranch(NodeMeta):
             self.branches = branches
 
         if name == None:
-            self.set_name("conditional_branch_" + "_".join(list(self.branches.keys())))
+            self.set_name("conditional_branch_" + "-".join(list(self.branches.keys())))
         else:
             self.set_name(name)
 
@@ -176,35 +179,33 @@ class ConditionalBranch(NodeMeta):
         self.router = router
         return self
     
-    def invoke(self, inputs: Any, callback: Optional[BaseCallback] = None) -> NodeOutput:
-        if callback: callback.node_start(self.name, inputs)
-        route = self._get_route(inputs)
+    def invoke(self, x: Any, callback: Optional[BaseCallback] = None) -> NodeOutput:
+        if callback: callback.node_start(self.name, x)
+        route = self._get_route(x)
         node = self._get_node(route)
-            
-        output = node.invoke(inputs)
-        
-        if callback: callback.node_finish(self.name, output)
+        if callback: callback.node_finish(self.name, route)
+        output = node.invoke(x=x, callback=callback)
         return output
     
-    async def ainvoke(self, inputs: Any, callback: Optional[BaseCallback] = None):
-        if callback: callback.node_start(self.name, inputs)
-        route = self._get_route(inputs)
+    async def ainvoke(self, x: Any, callback: Optional[BaseCallback] = None):
+        if callback: callback.node_start(self.name, x)
+        route = self._get_route(x)
         node = self._get_node(route)
+        if callback: callback.node_finish(self.name, route)
 
         if hasattr(node.invoke, "remote"):
-            output = await node.invoke.remote(inputs)
+            output = await node.invoke.remote(x=x, callback=callback)
         else:
-            output = node.invoke(inputs)
+            output = node.invoke(x=x, callback=callback)
 
-        if callback: callback.node_finish(self.name, output)
         return output
     
-    def _get_route(self, inputs) -> str:
+    def _get_route(self, x: Any) -> str:
         """ If a router is provided, use it to determine the appropriate route. Otherwise assume the given inputs are the route to take """
         if not self.router:
-            return inputs
+            return x
      
-        return self.router(inputs)
+        return self.router(x)
 
     def _get_node(self, route: str):
         try:
@@ -237,10 +238,10 @@ class Recursive(NodeMeta):
         n = 0
         while not response and n <= self.max_iter:
             for node in [self.node1, self.node2]:
-                input = get_content(x)
+                x = get_content(x)
 
-                if callback: callback.node_start(node.name, input)
-                x = node.invoke(x)
+                if callback: callback.node_start(node.name, x)
+                x = node.invoke(x=x, callback=callback)
                 if callback: callback.node_finish(node.name, x)
 
                 stop = check_for_break(x)
@@ -257,13 +258,13 @@ class Recursive(NodeMeta):
         n = 0
         while not response and n <= self.max_iter:
             for node in [self.node1, self.node2]:
-                input = get_content(x)
+                x = get_content(x)
 
                 if callback: callback.node_start(node.name, input)
                 if hasattr(node.invoke, "remote"):
-                    x = await node.ainvoke.remote(x)
+                    x = await node.ainvoke.remote(x=x, callback=callback)
                 else:
-                    x = await node.ainvoke(x)
+                    x = await node.ainvoke(x=x, callback=callback)
                 if callback: callback.node_finish(node.name, x)
 
                 stop = check_for_break(x)

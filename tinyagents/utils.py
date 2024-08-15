@@ -1,6 +1,7 @@
 from typing import Union, List, Any
 from uuid import uuid4
 import json
+import os
 
 import ray
 
@@ -19,6 +20,7 @@ def create_colored_text(text: str, colour: str) -> str:
     return f"\u001b[{colour_code}m\033[1;3m{text}\u001b[0m"
 
 def check_for_break(outputs: Union[NodeOutput, List[NodeOutput]]):
+    """ Check whether to continue executing the graph """
     if isinstance(outputs, dict):
         outputs = list(outputs.values())
 
@@ -56,3 +58,4 @@ def convert_to_string(x: Any) -> str:
 
 def create_run_id() -> str:
     return str(uuid4())
+    
