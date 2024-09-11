@@ -104,10 +104,10 @@ class Graph:
             return GraphRunner(nodes=self._state, callback=callback)
 
         if not self._compiled:
-            nodes = deploy_utils.nodes_to_deployments(graph_nodes=self._state, ray_options=ray_options)
+            self._state = deploy_utils.nodes_to_deployments(graph_nodes=self._state, ray_options=ray_options)
             self._compiled = True
 
-        return GraphDeployment.options(**ray_options).bind(nodes, callback=callback)
+        return GraphDeployment.options(**ray_options).bind(self._state, callback=callback)
 
     def next(self, node: Any) -> None:
         self._state.append(node)
