@@ -84,6 +84,9 @@ class GraphDeployment:
 
         return await self.runner.ainvoke(request)
     
+    async def _get_meta(self):
+        return [await node._get_meta.remote() for node in self.runner.nodes]
+    
 class Graph:
     _state: list
     _compiled: bool = False

@@ -82,6 +82,9 @@ class NodeMeta:
     
     def _init_tracer(self):
         self._tracer = create_tracer()
+
+    def _get_meta(self):
+        return self._metadata
     
 class Parralel(NodeMeta):
     """ A node which parallelises a set of subnodes """
