@@ -1,4 +1,4 @@
-from typing import Any, Callable, Optional, Dict, Union, Literal
+from typing import Any, Callable, Optional, Dict, Union, Literal, List
 from inspect import iscoroutinefunction
 
 from opentelemetry.sdk.trace import Tracer
@@ -44,23 +44,23 @@ class NodeMeta:
         return get_content(inputs)
     
     @trace_node
-    def invoke(self, x: Any, callback: Optional[BaseCallback] = None, **kwargs) -> Union[NodeOutput, Dict[str, NodeOutput]]:
+    def invoke(self, inputs: Any, callbacks: Optional[List[BaseCallback]] = None, **kwargs) -> Union[NodeOutput, Dict[str, NodeOutput]]:
         run_id = kwargs.get("run_id")
-        if callback: callback.node_start(inputs=x, node_name=self.name, run_id=run_id)
-        inputs = self.prepare_input(x)
+        if callbacks: [callback.node_start(inputs=inputs, node_name=self.name, run_id=run_id) for callback in callbacks]
+        inputs = self.prepare_input(inputs)
         output = self.run(inputs)
         output = self.output_handler(output)
-        if callback: callback.node_finish(outputs=output, node_name=self.name, run_id=run_id)
+        if callbacks: [callback.node_finish(outputs=output, node_name=self.name, run_id=run_id) for callback in callbacks]
         return output
     
     @trace_node
-    async def ainvoke(self, x: Any, callback: Optional[BaseCallback] = None, **kwargs) -> Union[NodeOutput, Dict[str, NodeOutput]]:
+    async def ainvoke(self, inputs: Any, callbacks: Optional[List[BaseCallback]] = None, **kwargs) -> Union[NodeOutput, Dict[str, NodeOutput]]:
         run_id = kwargs.get("run_id")
-        if callback: callback.node_start(inputs=x, node_name=self.name, run_id=run_id)
-        inputs = await self._async_run(self.prepare_input, x)
+        if callbacks: [callback.node_start(inputs=inputs, node_name=self.name, run_id=run_id) for callback in callbacks]
+        inputs = await self._async_run(self.prepare_input, inputs)
         output = await self._async_run(self.run, inputs)
         output = await self._async_run(self.output_handler, output)
-        if callback: callback.node_finish(outputs=output, node_name=self.name, run_id=run_id)
+        if callbacks: [callback.node_finish(outputs=output, node_name=self.name, run_id=run_id) for callback in callbacks]
         return output
     
     @staticmethod

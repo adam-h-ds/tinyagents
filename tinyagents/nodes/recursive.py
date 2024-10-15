@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List, Any
 
 from tinyagents.nodes import NodeMeta
 from tinyagents.callbacks import BaseCallback
@@ -24,16 +24,17 @@ class Recursive(NodeMeta):
     def __repr__(self):
         return f"Recursive({self.node1.name}, {self.node2.name})"
     
-    def invoke(self, x, callback: Optional[BaseCallback] = None, **kwargs):
+    def invoke(self, inputs: Any, callbacks: Optional[List[BaseCallback]] = None, **kwargs):
         response = None
         n = 0
+        x = inputs
         while not response and n <= self.max_iter:
             for node in [self.node1, self.node2]:
                 x = get_content(x)
 
-                if callback: callback.node_start(node.name, x)
-                x = node.invoke(x=x, callback=callback, **kwargs)
-                if callback: callback.node_finish(node.name, x)
+                if callbacks: [callback.node_start(node.name, x) for callback in callbacks]
+                x = node.invoke(inputs=x, callbacks=callbacks, **kwargs)
+                if callbacks: [callback.node_finish(node.name, x) for callback in callbacks]
 
                 stop = check_for_break(x)
                 if stop:
@@ -43,19 +44,22 @@ class Recursive(NodeMeta):
 
         return x
     
-    async def ainvoke(self, x, callback: Optional[BaseCallback] = None, **kwargs):
+    async def ainvoke(self, inputs: Any, callbacks: Optional[List[BaseCallback]] = None, **kwargs):
         response = None
         n = 0
+        x = inputs
         while not response and n <= self.max_iter:
             for node in [self.node1, self.node2]:
                 x = get_content(x)
 
-                if callback: callback.node_start(node.name, input)
+                if callbacks: [callback.node_start(node.name, input) for callback in callbacks]
+                
                 if hasattr(node.invoke, "remote"):
-                    x = await node.ainvoke.remote(x=x, callback=callback, **kwargs)
+                    x = await node.ainvoke.remote(inputs=x, callbacks=callbacks, **kwargs)
                 else:
-                    x = await node.ainvoke(x=x, callback=callback, **kwargs)
-                if callback: callback.node_finish(node.name, x)
+                    x = await node.ainvoke(inputs=x, callbacks=callbacks, **kwargs)
+
+                if callbacks: [callback.node_finish(node.name, x) for callback in callbacks]
 
                 stop = check_for_break(x)
                 if stop:

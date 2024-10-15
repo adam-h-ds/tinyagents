@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List, Any
 
 from tinyagents.nodes import NodeMeta
 from tinyagents.graph import Graph
@@ -19,22 +19,24 @@ class SubGraph(NodeMeta):
         subgraph_nodes_repr = " | ".join([node.name for node in self._state])
         return f"SubGraph({subgraph_nodes_repr})"
     
-    def invoke(self, x, callback: Optional[BaseCallback] = None, **kwargs) -> NodeOutput:
+    def invoke(self, inputs: Any, callbacks: Optional[List[BaseCallback]] = None, **kwargs) -> NodeOutput:
+        x = inputs
         for node in self._state:
             x = get_content(x)
-            x = node.invoke(x=x, callback=callback, **kwargs)
+            x = node.invoke(inputs=x, callbacks=callbacks, **kwargs)
             stop = check_for_break(x)
             if stop:
                 break
         return x
     
-    async def ainvoke(self, x, callback: Optional[BaseCallback] = None, **kwargs) -> NodeOutput:
+    async def ainvoke(self, inputs: Any, callbacks: Optional[List[BaseCallback]] = None, **kwargs) -> NodeOutput:
+        x = inputs
         for node in self._state:
             x = get_content(x)
             if hasattr(node, "remote"):
-                x = await node.ainvoke.remote(x=x, callback=callback, **kwargs)
+                x = await node.ainvoke.remote(inputs=x, callbacks=callbacks, **kwargs)
             else:
-                x = node.invoke(x=x, callback=callback, **kwargs)
+                x = node.ainvoke(inputs=x, callbacks=callbacks, **kwargs)
             stop = check_for_break(x)
             if stop:
                 break

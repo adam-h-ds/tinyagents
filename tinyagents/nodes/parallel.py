@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, List, Any
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 
@@ -33,37 +33,37 @@ class Parallel(NodeMeta):
         self.nodes[other_node.name] = other_node
         return self
     
-    def invoke(self, x, callback: Optional[BaseCallback] = None, **kwargs) -> Dict[str, NodeOutput]:
+    def invoke(self, inputs: Any, callbacks: Optional[List[BaseCallback]] = None, **kwargs) -> Dict[str, NodeOutput]:
         run_id = kwargs.get("run_id")
         refs = {}
         outputs = {}
         with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
             for name, node in self.nodes.items():
-                if callback: callback.node_start(inputs=x, node_name=name, run_id=run_id)
-                refs[name] = executor.submit(partial(node.invoke, x=x, **kwargs))
+                if callbacks: [callback.node_start(inputs=inputs, node_name=name, run_id=run_id) for callback in callbacks]
+                refs[name] = executor.submit(partial(node.invoke, inputs=inputs, **kwargs))
 
             for node_name in refs:
                 output = refs[node_name].result()
-                if callback: callback.node_finish(outputs=output, node_name=node_name, run_id=run_id)
+                if callbacks: [callback.node_finish(outputs=output, node_name=node_name, run_id=run_id) for callback in callbacks]
                 outputs[node_name] = output
 
         return outputs
     
-    async def ainvoke(self, x, callback: Optional[BaseCallback] = None, **kwargs) -> Dict[str, NodeOutput]:
+    async def ainvoke(self, inputs, callbacks: Optional[List[BaseCallback]] = None, **kwargs) -> Dict[str, NodeOutput]:
         run_id = kwargs.get("run_id")
         refs = {}
         outputs = {}
         for name, node in self.nodes.items():
-            if callback: callback.node_start(inputs=x, node_name=name, run_id=run_id)
+            if callbacks: [callback.node_start(inputs=inputs, node_name=name, run_id=run_id) for callback in callbacks]
 
             if hasattr(node, "remote"):
-                refs[name] = node.invoke.remote(x=x, callback=callback, **kwargs)
+                refs[name] = node.invoke.remote(inputs=inputs, callbacks=callbacks, **kwargs)
             else:
-                refs[name] = node.ainvoke(x=x, callback=callback, **kwargs)
+                refs[name] = node.ainvoke(inputs=inputs, callbacks=callbacks, **kwargs)
 
         for node_name in refs:
             output = await refs[node_name]
-            if callback: callback.node_finish(outputs=output, node_name=node_name, run_id=run_id)
+            if callbacks: [callback.node_finish(outputs=output, node_name=node_name, run_id=run_id) for callback in callbacks]
             outputs[node_name] = output
 
         return outputs
