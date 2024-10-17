@@ -165,7 +165,8 @@ class Graph:
 
     def compile(
             self, 
-            use_ray: bool = False, 
+            use_ray: bool = False,
+            single_deployment: bool = False,
             runner_ray_options: dict = {}, 
             callbacks: Optional[List[BaseCallback]] = None, 
             verbose: bool = True
@@ -175,6 +176,7 @@ class Graph:
 
         Args:
             use_ray (bool): Whether to convert nodes to Ray Deployments.
+            single_deployment (bool): Whether to contain all nodes within a single Ray Deployment.
             runner_ray_options (dict): The Ray Actor options for the GraphRunner deployment.
             callbacks (List[BaseCallback]): A list of callbacks that should be used.
             verbose (bool): Whether to print the node outputs to the console.
@@ -188,7 +190,8 @@ class Graph:
         if not use_ray:
             return GraphRunner(nodes=self._state, callbacks=callbacks)
 
-        if not self._compiled:
+        # check if nodes have already been converted to deployments
+        if not self._compiled and not single_deployment:
             self._state = deploy_utils.nodes_to_deployments(graph_nodes=self._state)
             self._compiled = True
 
