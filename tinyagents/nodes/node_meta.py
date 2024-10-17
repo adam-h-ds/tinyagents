@@ -15,7 +15,7 @@ class NodeMeta:
     _kind: Optional[Literal["tool", "llm", "retriever", "agent", "other"]]
     _ray_options: Optional[Dict[str, Any]]
     _metadata: Dict[str, Any]
-    _tracer: Tracer
+    _tracer: Union[Tracer, None]
 
     def __truediv__(self, *args) -> "ConditionalBranch":
         from tinyagents.nodes import ConditionalBranch

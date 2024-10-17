@@ -80,10 +80,10 @@ class GraphRunner:
         for node in self.nodes:
             x = get_content(x)
 
-            if hasattr(node.invoke, "remote"):
-                x = await node.ainvoke.remote(inputs, callbacks=self.callbacks, **kwargs)
+            if hasattr(node.ainvoke, "remote"):
+                x = await node.ainvoke.remote(inputs=x, callbacks=self.callbacks, **kwargs)
             else:
-                x = await node.ainvoke(inputs, callbacks=self.callbacks, **kwargs)
+                x = await node.ainvoke(inputs=x, callbacks=self.callbacks, **kwargs)
 
             stop = check_for_break(x)
 

@@ -14,7 +14,6 @@ def trace_flow(func):
     """ Decorator for tracing the execution of a flow """
     @functools.wraps(func)
     def wrap(cls, inputs, **kwargs):
-
         if cls._tracer is None:
             return func(cls, inputs, **kwargs)
         

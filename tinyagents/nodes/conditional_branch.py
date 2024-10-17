@@ -43,10 +43,10 @@ class ConditionalBranch(NodeMeta):
         route = self._get_route(inputs)
         node = self._get_node(route)
 
-        if hasattr(node.invoke, "remote"):
-            output = await node.invoke.remote(inputs=inputs, callbacks=callbacks, **kwargs)
+        if hasattr(node.ainvoke, "remote"):
+            output = await node.ainvoke.remote(inputs=inputs, callbacks=callbacks, **kwargs)
         else:
-            output = node.invoke(inputs=inputs, callbacks=callbacks, **kwargs)
+            output = await node.ainvoke(inputs=inputs, callbacks=callbacks, **kwargs)
 
         if callbacks: [callback.node_finish(outputs=output, node_name=self.name, run_id=run_id) for callback in callbacks]
 
