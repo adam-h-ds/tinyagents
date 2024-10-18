@@ -26,6 +26,7 @@ A tiny, lightweight and unintrusive library for orchestrating agentic applicatio
         * [Looping](#looping)
         * [Subgraphs](#subgraphs)
     * [Serve your application using Ray Serve](#serve-your-application-using-ray-serve)
+    * [Tracing using OpenTelemetry and Phoenix by Arize AI](#tracing)
 
 ## Installation
 
