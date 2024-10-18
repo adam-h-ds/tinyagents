@@ -9,12 +9,23 @@ A tiny, lightweight and unintrusive library for orchestrating agentic applicatio
 
 **Here's the big idea:**
 
-1. 😶‍🌫️ **Less than 1000 lines of code.**
+1. 😶‍🌫️ **Less than 1000 lines of code**
 2. 😨 **Lightweight - "Ray Is All You Need"**
 3. 🚀 **No need to change your code, just decorate!** 
 
 **Recent updates**:
-1. (17/07) As of version 1.1, you can now run and deploy TinyAgents graphs using **Ray Serve** 🎉 see this [notebook](examples/deploy_with_ray.ipynb) for an example. More information can also be found here [Run and deploy using Ray Serve](docs/using_ray.md).
+1. (18/10/24) As of version 1.2, TinyAgents supports tracing 🔍 using [OpenTelemetry](https://opentelemetry.io/). As traces follow the [OpenInference](https://github.com/Arize-ai/openinference) semantic conventions, traces can be visualised using [Arize Phoenix](https://github.com/Arize-ai/phoenix). See [Tracing](#tracing) for more information.
+2. (17/07/24) As of version 1.1, you can now run and deploy TinyAgents graphs using **Ray Serve** 🎉 see this [notebook](examples/deploy_with_ray.ipynb) for an example. More information can also be found here [Run and deploy using Ray Serve](docs/using_ray.md).
+
+**Contents**
+1. [Installation](#installation)
+2. [How it works!](#how-it-works)
+    * [Define your graph using standard operators](#define-your-graph-using-standard-operators)
+        * [Parallelisation](#parallelisation)
+        * [Branching](#branching)
+        * [Looping](#looping)
+        * [Subgraphs](#subgraphs)
+    * [Serve your application using Ray Serve](#serve-your-application-using-ray-serve)
 
 ## Installation
 
@@ -194,4 +205,66 @@ combined_graph_runner = (graph1 & graph2).compile()
 combined_result = combined_graph_runner.invoke(state)
 print(combined_result)
 # [result1, result2]
+```
+
+### Serve your application using Ray Serve
+
+See [Using Ray](docs/using_ray.md) for more information.
+
+```python
+from ray import serve
+
+@chainable(
+    node_name="my_agent",
+    kind="agent",
+    ray_options={
+        "num_replicas": 1,
+        "max_ongoing_requests": 50
+    }
+)
+class MyAgent:
+    def __init__(self):
+        ...
+
+    def run(self, inputs: str):
+        ...
+
+@chainable(
+    node_name="my_tool",
+    kind="tool",
+    ray_options={
+        "num_replicas": 3,
+        "max_ongoing_requests": 100
+    }
+)
+class MyTool:
+    def __init__(self):
+        ...
+
+    def run(self, inputs: str):
+        ...
+
+graph = loop(MyTool(), MyAgent(), max_iter=3).as_graph()
+
+# set single_deployment to True to include all nodes within a single Ray Deployment
+runner = graph.compile(use_ray=True, single_deployment=False)
+
+app = serve.run(runner, name="my_application")
+
+result = await app.ainvoke.remote(...)
+```
+
+### Tracing
+
+To enable tracing, you simply need to set the `TINYAGENTS_ENABLE_TRACING` environment variable to `true`.
+
+```python
+import phoenix as px
+session = px.launch_app()
+
+import os
+os.environ["TINYAGENTS_ENABLE_TRACING"] = "true"
+
+# you can also set the collector endpoint as follows, otherwise the default endpoint for Phoenix will be used
+# os.environ["COLLECTOR_ENDPOINT"] = "..."
 ```
