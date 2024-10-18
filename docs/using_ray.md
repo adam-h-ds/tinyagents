@@ -32,7 +32,14 @@ Graphs can be converted to a Ray Serve Application by passing the `use_ray=True`
 from tinyagents import chainable
 from ray import serve
 
-@chainable
+# configure ray options, see the following for all of the possible options https://docs.ray.io/en/latest/serve/configure-serve-deployment.html
+
+@chainable(
+    ray_options={
+        "num_replicas": 1,
+        "max_ongoing_requests": 100
+    }
+)
 class Agent1:
     name: str = "agent1"
 
@@ -42,7 +49,12 @@ class Agent1:
     def run(self, x):
         return ...
 
-@chainable
+@chainable(
+    ray_options={
+        "num_replicas": 2,
+        "max_ongoing_requests": 200
+    }
+)
 class Agent2:
     name: str = "agent2"
 
@@ -55,26 +67,8 @@ class Agent2:
 # define graph
 graph = loop(Agent1(), Agent2(), max_iter=6).as_graph()
 
-# configure ray options, see the following for all of the possible options https://docs.ray.io/en/latest/serve/configure-serve-deployment.html
-ray_options = {
-    "agent1": {
-        "num_replicas": 2
-        # "ray_actor_options": {"num_gpus": 1},
-        # ....
-    },
-    "agent2": {
-        "num_replicas": 2
-    },
-    "runner": {
-        "num_replicas": 2
-    }
-}
-
 # create a Ray Serve Application
-runner = graph.compile(
-    use_ray=True,
-    ray_options=ray_options
-)
+runner = graph.compile(use_ray=True)
 
 # deploy the application for testing
 app = serve.run(runner, name="my_multiagent_app")

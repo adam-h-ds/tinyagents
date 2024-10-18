@@ -1,5 +1,7 @@
-from typing import Union, List
+from typing import Union, List, Any
 from uuid import uuid4
+import json
+import os
 
 import ray
 
@@ -18,6 +20,7 @@ def create_colored_text(text: str, colour: str) -> str:
     return f"\u001b[{colour_code}m\033[1;3m{text}\u001b[0m"
 
 def check_for_break(outputs: Union[NodeOutput, List[NodeOutput]]):
+    """ Check whether to continue executing the graph """
     if isinstance(outputs, dict):
         outputs = list(outputs.values())
 
@@ -36,14 +39,23 @@ def get_content(x):
         return [output.content if isinstance(output, NodeOutput) else output for output in x]
             
     elif isinstance(x, dict):
-        for key in x:
-            if isinstance(x[key], NodeOutput):
-                x[key] = x[key].content
+        for key, value in x.items():
+            if isinstance(value, NodeOutput):
+                x[key] = value.content
         
     elif isinstance(x, NodeOutput):
         return x.content
     
     return x
 
-def create_run_id():
+def convert_to_string(x: Any) -> str:
+    x = get_content(x)
+
+    if isinstance(x, dict) or isinstance(x, list):
+        return json.dumps(x)
+    
+    return str(x)
+
+def create_run_id() -> str:
     return str(uuid4())
+    

@@ -9,12 +9,24 @@ A tiny, lightweight and unintrusive library for orchestrating agentic applicatio
 
 **Here's the big idea:**
 
-1. 😶‍🌫️ **Less than 600 lines of code.**
+1. 😶‍🌫️ **Less than 1000 lines of code**
 2. 😨 **Lightweight - "Ray Is All You Need"**
 3. 🚀 **No need to change your code, just decorate!** 
 
 **Recent updates**:
-1. (17/07) As of version 1.1, you can now run and deploy TinyAgents graphs using **Ray Serve** 🎉 see this [notebook](examples/deploy_with_ray.ipynb) for an example. More information can also be found here [Run and deploy using Ray Serve](docs/using_ray.md).
+1. (18/10/24) As of version 1.2, TinyAgents supports tracing 🔍 using [OpenTelemetry](https://opentelemetry.io/). As traces follow the [OpenInference](https://github.com/Arize-ai/openinference) semantic conventions, traces can be visualised using [Arize Phoenix](https://github.com/Arize-ai/phoenix). See [Tracing](#tracing) for more information.
+2. (17/07/24) As of version 1.1, you can now run and deploy TinyAgents graphs using **Ray Serve** 🎉 see this [notebook](examples/deploy_with_ray.ipynb) for an example. More information can also be found here [Run and deploy using Ray Serve](docs/using_ray.md).
+
+**Contents**
+1. [Installation](#installation)
+2. [How it works!](#how-it-works)
+    * [Define your graph using standard operators](#define-your-graph-using-standard-operators)
+        * [Parallelisation](#parallelisation)
+        * [Branching](#branching)
+        * [Looping](#looping)
+        * [Subgraphs](#subgraphs)
+    * [Serve your application using Ray Serve](#serve-your-application-using-ray-serve)
+    * [Tracing using OpenTelemetry and Phoenix by Arize AI](#tracing)
 
 ## Installation
 
@@ -91,6 +103,11 @@ Use the `loop` function to define a `Recursive` node.
 
 ```python
 from tinyagents import chainable, loop, end_loop, passthrough
+from typing import TypedDict
+
+class State(TypedDict):
+    approved: bool
+    findings: List[str]
 
 @chainable
 class Supervisor:
@@ -98,25 +115,157 @@ class Supervisor:
         ...
 
     def run(self, state: dict) ->:
-        # get findings from the state and assess
+        # get findings from the state and determine if the research is sufficient
+        if len(state.findings) > 3:
+            state.approved = True
+
         return state
 
     def output_handler(self, state: dict):
-        if state["last_message"] == "Approved":
-            return end_loop(supervisor_output)
+        # override the default output handler which returns `passthrough(..)` 
+        # to move to the next node in the graph.
+        if state.approved == True:
+            return end_loop(...final output...)
         
-        return passthrough(supervisor_output)
+        return passthrough(state)
 
+@chainable
 class Researcher:
     def __init__(self):
         ...
 
-    def __run__(self, state: str) -> str:
-        # add findings to the state
+    def __run__(self, state: State) -> State:
+        # do research and add findings to the state
+        state.findings.append("...new finding...")
         return state
 
 graph = loop(Researcher(), Supervisor(), max_iter=8).as_graph()
 
 print(graph)
 ## Recursive(researcher, supervisor)
+```
+
+#### Subgraphs
+
+You can use `Graph` objects as if they were nodes, which creates `SubGraph` nodes.
+
+```python
+from tinyagents import chainable, loop
+from pydantic import BaseModel
+
+class State(BaseModel):
+    messages: List[Dict[str, str]]
+
+@chainable
+def tool1(inputs: str):
+    return ...
+
+@chainable
+def tool2(inputs: str):
+    return ...
+
+@chainable
+def tool3(inputs: str):
+    return ...
+
+@chainable
+def tool4(inputs: str):
+    return ...
+
+@chainable
+class Agent:
+    def __init__(self):
+        ...
+
+    def run(self, inputs: State):
+        # use tools and generate a response
+        return ...
+
+# parallelise all toolkits
+toolkit1 = tool1 & tool2
+toolkit2 = tool3 & tool4
+agent = Agent()
+
+# define Graph 1
+graph1 = loop(toolkit1, agent, max_iter=2).as_graph()
+# define Graph 2
+graph2 = toolkit2 | agent
+
+graph1_runner = graph1.compile()
+graph2_runner = graph2.compile()
+
+state = State(messages=[{"role": "user", "content": "Hello!"}])
+
+# invoke Graph 1 
+result1 = graph1.invoke(state)
+# invoke Graph 2
+result2 = graph2.invoke(state)
+
+# invoke a combined and parallelised graph
+combined_graph_runner = (graph1 & graph2).compile()
+combined_result = combined_graph_runner.invoke(state)
+print(combined_result)
+# [result1, result2]
+```
+
+### Serve your application using Ray Serve
+
+See [Using Ray](docs/using_ray.md) for more information.
+
+```python
+from ray import serve
+
+@chainable(
+    node_name="my_agent",
+    kind="agent",
+    ray_options={
+        "num_replicas": 1,
+        "max_ongoing_requests": 50
+    }
+)
+class MyAgent:
+    def __init__(self):
+        ...
+
+    def run(self, inputs: str):
+        ...
+
+@chainable(
+    node_name="my_tool",
+    kind="tool",
+    ray_options={
+        "num_replicas": 3,
+        "max_ongoing_requests": 100
+    }
+)
+class MyTool:
+    def __init__(self):
+        ...
+
+    def run(self, inputs: str):
+        ...
+
+graph = loop(MyTool(), MyAgent(), max_iter=3).as_graph()
+
+# set single_deployment to True to include all nodes within a single Ray Deployment
+runner = graph.compile(use_ray=True, single_deployment=False)
+
+app = serve.run(runner, name="my_application")
+
+result = await app.ainvoke.remote(...)
+```
+
+### Tracing
+
+To enable tracing, you simply need to set the `TINYAGENTS_ENABLE_TRACING` environment variable to `true`.
+
+```python
+import phoenix as px
+session = px.launch_app()
+
+import os
+os.environ["TINYAGENTS_ENABLE_TRACING"] = "true"
+
+# you can also set the collector endpoint as follows, otherwise the default endpoint for Phoenix will be used
+# os.environ["COLLECTOR_ENDPOINT"] = "..."
 ```

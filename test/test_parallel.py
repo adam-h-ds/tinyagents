@@ -17,7 +17,7 @@ class TestParallelNode(unittest.TestCase):
 
     def test_construction(self):
         node = Action1() & Action2()
-        self.assertIs(isinstance(node, nodes.Parralel), True)
+        self.assertIs(isinstance(node, nodes.Parallel), True)
 
     def test_node_execution(self):
         action1 = Action1()
